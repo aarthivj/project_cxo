@@ -67,7 +67,7 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       await Future.delayed(const Duration(seconds: 2));
-      final response = await apiService.login("administrator@droidal.com","DroidalAdmin@2025");
+      final response = await apiService.login(_emailController.text,_passwordController.text);
 
       if (response != null) {
          final accessToken = response.access;
@@ -119,12 +119,12 @@ class _LoginPageState extends State<LoginPage> {
       body: Stack(
         children: [
           // Background pattern (replace with your actual image or custom painter if needed)
-          Positioned.fill(
-            child: Image.network(
-              'https://i.imgur.com/e2d4G0w.png', // Replace with your image asset or a custom painter
-              fit: BoxFit.cover,
-            ),
-          ),
+          // Positioned.fill(
+          //   child: Image.network(
+          //     'https://i.imgur.com/e2d4G0w.png', // Replace with your image asset or a custom painter
+          //     fit: BoxFit.cover,
+          //   ),
+          // ),
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
@@ -204,29 +204,13 @@ class _LoginPageState extends State<LoginPage> {
                         CustomButton(
                           text: 'Log in',
                           onPressed: _handleLogin,
+                        //  onPressed: (){
+                        //   Navigator.push(context, MaterialPageRoute(builder: (context)=> const HomeScreen()));
+                        //  },
                           isLoading: _isLoading,
                         ),
                         const SizedBox(height: 24),
-                        // Row(
-                        //   mainAxisAlignment: MainAxisAlignment.center,
-                        //   children: [
-                        //     Text(
-                        //       "Don't have an account? ",
-                        //       style: Theme.of(context).textTheme.bodyMedium,
-                        //     ),
-                        //     TextButton(
-                        //       onPressed: () {
-                        //         // Handle sign up navigation
-                        //         ScaffoldMessenger.of(context).showSnackBar(
-                        //           const SnackBar(content: Text('Sign up clicked!')),
-                        //         );
-                        //       },
-                        //       child: const Text('Sign'),
-                        //     ),
-                        //   ],
-                        // ),
-                        
-                        
+                      
                       ],
                     ),
                   ),

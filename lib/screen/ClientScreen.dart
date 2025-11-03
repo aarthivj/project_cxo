@@ -2,9 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_application_cxo/model/ClientResponse.dart';
+// 1. Import your new Debarred model
+import 'package:flutter_application_cxo/model/ClientDebarredResponse.dart';
 import 'package:flutter_application_cxo/service/ApiService.dart';
 import 'package:flutter_application_cxo/widget/AppTheme.dart';
 import 'package:flutter_application_cxo/widget/CustomWidget.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 
 class ClientScreen extends StatefulWidget {
   const ClientScreen({super.key});
@@ -15,44 +18,85 @@ class ClientScreen extends StatefulWidget {
   }
 }
 
-class ClientScreenState extends State<ClientScreen> {
+class ClientScreenState extends State<ClientScreen>
+    with TickerProviderStateMixin {
   late ApiService apiService;
-  List<ClientResponse> clients = [];
-  List<ClientResponse> filteredclients = [];
-  int? selectedIndex;
+  late TabController _tabController;
+
+  // 2. Create separate master lists for the tabs
+  List<ClientResponse> liveClients = [];
+  List<ClientDebarredResponse> debarredClients = [];
+
+  // 3. Create separate filtered lists
+  List<ClientResponse> filteredLiveClients = [];
+  List<ClientDebarredResponse> filteredDebarredClients = [];
+
+  // 4. Use a generic Object? for the selected item
+  Object? selectedItem;
   final TextEditingController searchController = TextEditingController();
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
     apiService = ApiService();
-    fetchClients();
-  }
-
-  Future<void> fetchClients() async {
-    try {
-      final response = await apiService.getclient();
-      if (response != null) {
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
         setState(() {
-          clients = response;
-          filteredclients = clients;
+          selectedItem = null; // Clear selection on tab change
         });
       }
+    });
+    fetchAllClients();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    searchController.dispose();
+    super.dispose();
+  }
+
+  // 5. Fetch data for BOTH tabs
+  Future<void> fetchAllClients() async {
+    setState(() => _isLoading = true);
+    try {
+      final responses = await Future.wait([
+        apiService.getclient(),
+        apiService.getdebarredclient(),
+      ]);
+
+      setState(() {
+        liveClients = responses[0] as List<ClientResponse>? ?? [];
+        filteredLiveClients = liveClients;
+
+        debarredClients = responses[1] as List<ClientDebarredResponse>? ?? [];
+        filteredDebarredClients = debarredClients;
+
+        _isLoading = false;
+      });
     } catch (e) {
-      // Handle exception gracefully
       print('Failed to fetch clients: $e');
+      setState(() => _isLoading = false);
     }
   }
 
+  // 6. Filter BOTH lists
   void filterclients(String query) {
-    final filtered = clients.where((user) {
-      final name = user.companyName?.toLowerCase() ?? '';
-      final role = user.country?.toLowerCase() ?? '';
-      return name.contains(query.toLowerCase()) ||
-          role.contains(query.toLowerCase());
-    }).toList();
-
+    final lowerQuery = query.toLowerCase();
     setState(() {
-      filteredclients = filtered;
+      filteredLiveClients = liveClients.where((client) {
+        final name = client.companyName?.toLowerCase() ?? '';
+        final role = client.country?.toLowerCase() ?? '';
+        return name.contains(lowerQuery) || role.contains(lowerQuery);
+      }).toList();
+
+      filteredDebarredClients = debarredClients.where((client) {
+        final name = client.companyName?.toLowerCase() ?? '';
+        final role = client.country?.toLowerCase() ?? '';
+        return name.contains(lowerQuery) || role.contains(lowerQuery);
+      }).toList();
     });
   }
 
@@ -72,15 +116,11 @@ class ClientScreenState extends State<ClientScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width > 600 ? 3 : 2; // responsive columns
-
     return Scaffold(
       appBar: CustomAppBar(title: "Clients"),
-
       body: Column(
         children: [
-          // Search bar
+          // Search bar (Unchanged)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -103,241 +143,318 @@ class ClientScreenState extends State<ClientScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  onPressed: () {
-                    // Handle filter action
-                  },
+                  onPressed: () {},
                   icon: const Icon(Icons.filter_list),
                 ),
               ],
             ),
           ),
 
+          // TabBar (Unchanged)
+          TabBar(
+            controller: _tabController,
+            labelColor: AppTheme.lightTheme.primaryColor,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: AppTheme.lightTheme.primaryColor,
+            tabs: const [
+              Tab(text: "LIVE"),
+              Tab(text: "DEBARRED"),
+            ],
+          ),
+
+          // TabBarView
           Expanded(
-            child: filteredclients.isEmpty
+            child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      childAspectRatio: 0.60,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: filteredclients.length,
-                    itemBuilder: (context, index) {
-                      final client = filteredclients[index];
-                      bool isSelected = selectedIndex == index;
-
-                      return GestureDetector(
-                        onLongPress: () {
-                          setState(() {
-                            selectedIndex = isSelected ? null : index;
-                          });
-                        },
-                        onTap: () {
-                          if (isSelected) {
-                            setState(() {
-                              selectedIndex = null;
-                            });
-                          }
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Card(
-                            margin: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 4,
-                            child: Stack(
-                              children: [
-                                // card content (avatar, text, etc.)
-                                Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      // Avatar
-                                      Center(
-                                        child: LayoutBuilder(
-                                          builder: (context, constraints) {
-                                            double avatarRadius =
-                                                constraints.maxWidth * 0.2;
-                                            return CircleAvatar(
-                                              radius: avatarRadius,
-                                              backgroundColor: AppTheme
-                                                  .lightTheme
-                                                  .primaryColor,
-                                              backgroundImage:
-                                                  (client.profilePicture !=
-                                                          null &&
-                                                      client
-                                                          .profilePicture!
-                                                          .isNotEmpty)
-                                                  ? NetworkImage(
-                                                      client.profilePicture!,
-                                                    )
-                                                  : null,
-                                              child:
-                                                  (client.profilePicture ==
-                                                          null ||
-                                                      client
-                                                          .profilePicture!
-                                                          .isEmpty)
-                                                  ? Text(
-                                                      getInitials(
-                                                        client.companyName ??
-                                                            "N/A",
-                                                      ),
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize:
-                                                            avatarRadius * 0.6,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    )
-                                                  : null,
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-
-                                      // Company Name
-                                      Text(
-                                        safeText(client.companyName),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Colors.black,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        softWrap: true,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 4),
-
-                                      // Contact Person
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.perm_contact_cal_outlined,
-                                            size: 14,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              safeText(client.contactPerson),
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-
-                                      // Onboard Date
-                                      Text(
-                                        client.clientOnboardDate?.toString() ??
-                                            "N/A",
-                                        softWrap: true,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 4),
-
-                                      // Email
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.email_outlined,
-                                            size: 14,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Flexible(
-                                            child: Text(
-                                              safeText(client.contactEmail),
-                                              softWrap: true,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Blur overlay only when selected
-                                if (isSelected)
-                                  Positioned.fill(
-                                    child: BackdropFilter(
-                                      filter: ImageFilter.blur(
-                                        sigmaX: 5,
-                                        sigmaY: 5,
-                                      ),
-                                      child: Container(
-                                        color: Colors.black.withOpacity(0.3),
-                                        child: Center(
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceEvenly,
-                                            children: [
-                                              IconButton(
-                                                onPressed: () {
-                                                  // Handle edit action
-                                                },
-                                                icon: Icon(
-                                                  Icons.edit,
-                                                  color: AppTheme
-                                                      .lightTheme
-                                                      .primaryColor,
-                                                  size: 28,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                onPressed: () {
-                                                  // Handle delete action
-                                                },
-                                                icon: Icon(
-                                                  Icons.delete,
-                                                  color: AppTheme
-                                                      .lightTheme
-                                                      .primaryColor,
-                                                  size: 28,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // 7. Call the Live grid builder
+                      _buildLiveClientGrid(filteredLiveClients),
+                      // 8. Call the Debarred grid builder
+                      _buildDebarredClientGrid(filteredDebarredClients),
+                    ],
                   ),
           ),
         ],
       ),
-
-      // ✅ Floating action button in default bottom-right
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          // TODO: Implement your _showEditDialog call
+        },
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // LIVE CLIENT GRID
+  // -----------------------------------------------------------------
+  Widget _buildLiveClientGrid(List<ClientResponse> clientList) {
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width > 600 ? 3 : 2;
+
+    if (clientList.isEmpty) {
+      return Center(
+          child:
+              Text("No live clients found.", style: TextStyle(color: Colors.grey[600])));
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.60,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: clientList.length,
+      itemBuilder: (context, index) {
+        final client = clientList[index];
+        bool isSelected = selectedItem == client;
+
+        return GestureDetector(
+          onLongPress: () => setState(() => selectedItem = isSelected ? null : client),
+          onTap: () => setState(() {
+            if (isSelected) selectedItem = null;
+          }),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              elevation: 4,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: _buildLiveCardColumn(client), // ✅ Live Card
+                  ),
+                  if (isSelected) _buildCardOverlay(client), // ✅ Overlay
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // DEBARRED CLIENT GRID
+  // -----------------------------------------------------------------
+  Widget _buildDebarredClientGrid(List<ClientDebarredResponse> clientList) {
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width > 600 ? 3 : 2;
+
+    if (clientList.isEmpty) {
+      return Center(
+          child: Text("No debarred clients found.",
+              style: TextStyle(color: Colors.grey[600])));
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.60,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: clientList.length,
+      itemBuilder: (context, index) {
+        final client = clientList[index];
+        bool isSelected = selectedItem == client;
+
+        return GestureDetector(
+          onLongPress: () => setState(() => selectedItem = isSelected ? null : client),
+          onTap: () => setState(() {
+            if (isSelected) selectedItem = null;
+          }),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                // ✅ STYLING: Red border
+                side: BorderSide(color: Colors.red.shade300, width: 2),
+              ),
+              elevation: 4,
+              child: Stack(
+                children: [
+                  // ✅ STYLING: Opacity for "disabled" look
+                  Opacity(
+                    opacity: 0.6,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: _buildDebarredCardColumn(client), // ✅ Debarred Card
+                    ),
+                  ),
+                  if (isSelected) _buildCardOverlay(client), // ✅ Overlay
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // CARD CONTENT WIDGETS
+  // -----------------------------------------------------------------
+
+  /// Builds the content for a LIVE client card
+  Widget _buildLiveCardColumn(ClientResponse client) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildAvatar(client.profilePicture, client.companyName),
+        const SizedBox(height: 12),
+        _buildText(safeText(client.companyName), isTitle: true),
+        const SizedBox(height: 4),
+        _buildRow(Icons.perm_contact_cal_outlined, safeText(client.contactPerson),
+            isBold: true),
+        const SizedBox(height: 4),
+        
+        // ✅ Onboard Date
+        _buildRow(Icons.calendar_today_outlined,
+            "Onboard: ${safeText(client.clientOnboardDate.toString())}"),
+            
+        const SizedBox(height: 4),
+        _buildRow(Icons.email_outlined, safeText(client.contactEmail)),
+      ],
+    );
+  }
+
+  /// Builds the content for a DEBARRED client card
+  Widget _buildDebarredCardColumn(ClientDebarredResponse client) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildAvatar(client.profilePicture, client.companyName),
+        const SizedBox(height: 12),
+        _buildText(safeText(client.companyName), isTitle: true),
+        const SizedBox(height: 4),
+        _buildRow(Icons.perm_contact_cal_outlined, safeText(client.contactPerson),
+            isBold: true),
+        const SizedBox(height: 4),
+
+        // ✅ Churn Date
+        _buildRow(Icons.calendar_today_outlined,
+            "Churned: ${safeText(client.clientOnboardDate)}"), 
+            
+        const SizedBox(height: 4),
+        _buildRow(Icons.email_outlined, safeText(client.contactEmail)),
+      ],
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // REUSABLE HELPER WIDGETS
+  // -----------------------------------------------------------------
+
+  /// Builds the Avatar circle
+  Widget _buildAvatar(String? profilePicture, String? companyName) {
+    return Center(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          double avatarRadius = constraints.maxWidth * 0.2;
+          return CircleAvatar(
+            radius: avatarRadius,
+            backgroundColor: AppTheme.lightTheme.primaryColor,
+            backgroundImage:
+                (profilePicture != null && profilePicture.isNotEmpty)
+                    ? NetworkImage(profilePicture)
+                    : null,
+            child: (profilePicture == null || profilePicture.isEmpty)
+                ? Text(
+                    getInitials(companyName ?? "N/A"),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: avatarRadius * 0.6,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
+          );
+        },
+      ),
+    );
+  }
+
+  /// Builds a text row for the card
+  Widget _buildText(String text, {bool isTitle = false}) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontWeight: isTitle ? FontWeight.bold : FontWeight.normal,
+        fontSize: isTitle ? 16 : 12,
+        color: Colors.black,
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      softWrap: true,
+      textAlign: TextAlign.center,
+    );
+  }
+
+  /// Builds an icon/text row for the card
+  Widget _buildRow(IconData icon, String text, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 14),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              fontSize: isBold ? 14 : 12,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the long-press overlay
+  Widget _buildCardOverlay(Object client) {
+    return Positioned.fill(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Container(
+          color: Colors.black.withOpacity(0.3),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    // Handle edit action
+                    // TODO: Implement your _showEditDialog call
+                    // Pass 'client' which can be either type
+                  },
+                  icon: Icon(Icons.edit,
+                      color: AppTheme.lightTheme.primaryColor, size: 28),
+                ),
+                IconButton(
+                  onPressed: () {
+                    // Handle delete action
+                  },
+                  icon: Icon(Icons.delete,
+                      color: AppTheme.lightTheme.primaryColor, size: 28),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

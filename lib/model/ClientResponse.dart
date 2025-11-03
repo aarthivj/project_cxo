@@ -54,7 +54,7 @@ class ClientResponse {
 
 class AdditionalEmail {
     AdditionalEmail({
-        required this.email,
+        this.email,
     });
 
     final String? email;
@@ -64,5 +64,9 @@ class AdditionalEmail {
             email: json["email"],
         );
     }
+
+    Map<String, dynamic> toJson() => {
+        "email": email,
+      };
 
 }

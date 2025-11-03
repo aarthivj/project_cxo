@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_cxo/model/ActivityLogResponse.dart';
 import 'package:flutter_application_cxo/model/ActivityResponse.dart';
 import 'package:flutter_application_cxo/model/ActivityScreenResponse.dart';
+import 'package:flutter_application_cxo/model/ClientDebarredResponse.dart';
 import 'package:flutter_application_cxo/model/ClientResponse.dart';
 import 'package:flutter_application_cxo/model/ClientonchartResponse.dart';
 import 'package:flutter_application_cxo/model/FiveAResponse.dart';
@@ -29,6 +31,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   final ApiClient _client = ApiClient();
   final Dio _dio = Dio();
+  Map<String, dynamic>? lastError;
   
   /// Login API
 // Future<Loginresponse?> login(String userUsername, String userPassword) async {
@@ -60,9 +63,11 @@ class ApiService {
 //     return null;
 //   }
 // }
+
+
 Future<Loginresponse?> login(String userUsername, String userPassword) async {
   try {
-    final response = await _client.dio.post(
+    final response = await _client.dio.post( 
       'api/login/',
       data: {
         'user_email': userUsername, 
@@ -199,6 +204,38 @@ Future<List<ClientResponse>?> getclient() async {
     return null;
   }
 }
+
+
+Future<List<ClientDebarredResponse>?> getdebarredclient() async {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+
+  try {
+    final response = await _client.dio.get(
+      'api/get_debarred_client/',
+      options: Options(
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 && response.data != null) {
+      return (response.data as List)
+          .map((e) => ClientDebarredResponse.fromJson(e))
+          .toList();
+    } else {
+      print("ClientResponse failed: ${response.statusCode} ${response.data}");
+      return null;
+    }
+  } catch (e) {
+    print("client API error: $e");
+    return null;
+  }
+}
+
 
 //machines get
 Future<List<MachineResult>?> getmachines(
@@ -774,6 +811,265 @@ Future<RoiResponse?> getroidata(int? projectid) async {
   }
 }
 
+//post and delete options 
+
+
+Future<UserResponse?> postusers(
+  String name,
+  String email,
+  String password,
+  String? path,
+  String? selectedLocation,
+  bool isChecked,
+  bool isStatusActive,
+  String? selectedDesignation,
+  int? selectedrole,
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token');
+
+  try {
+    final formData = FormData.fromMap({
+      'user_name': name,
+      'user_email': email,
+      'password': password,
+      'work_location': selectedLocation,
+      'production_support': isChecked,
+      'is_active': isStatusActive,
+      'designation': selectedDesignation ?? 1, // ✅ use your dropdown value
+      'role_id': selectedrole ?? 1,            // ✅ use your dropdown value
+      if (path != null) 
+        'profile_picture': await MultipartFile.fromFile(path),
+    });
+
+    final response = await _client.dio.post(
+      'api/users/',
+      data: formData,
+      options: Options(
+        headers: {"Authorization": "Bearer $token"},
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = response.data;
+
+      // ✅ Parse into UserResponse model safely
+      if (data is Map<String, dynamic>) {
+        return UserResponse.fromJson(data);
+      } else {
+        return null;
+      }
+    } else {
+      lastError = response.data;
+      return null;
+    }
+  } catch (e) {
+    debugPrint("users API error: $e");
+    return null;
+  }
+}
+
+
+Future<UserResponse?> updateusers(
+  int userId,
+  String name,
+  String email,
+  String? password,
+  String? path,
+  String? selectedLocation,
+  bool isChecked,
+  bool isStatusActive,
+  String? selectedDesignation,
+  int? selectedrole,
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token');
+
+  try {
+    final formData = FormData.fromMap({
+      'user_name': name,
+      'user_email': email,
+      'password': password,
+      'work_location': selectedLocation,
+      'production_support': isChecked,
+      'is_active': isStatusActive,
+      'designation': selectedDesignation ?? 1, // ✅ use your dropdown value
+      'role_id': selectedrole ?? 1,            // ✅ use your dropdown value
+      if (path != null) 
+        'profile_picture': await MultipartFile.fromFile(path),
+    });
+
+    final response = await _client.dio.put(
+      'api/users/$userId/',
+      data: formData,
+      options: Options(
+        headers: {"Authorization": "Bearer $token"},
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = response.data;
+
+      // ✅ Parse into UserResponse model safely
+      if (data is Map<String, dynamic>) {
+        return UserResponse.fromJson(data);
+      } else {
+        return null;
+      }
+    } else {
+      lastError = response.data;
+      return null;
+    }
+  } catch (e) {
+    debugPrint("users API error: $e");
+    return null;
+  }
+}
+
+Future<ProjectResponse?> postproject({
+  required String name,
+  String? projectType,
+  required String description,
+  File? projectLogoFile,
+  File? socUploadFile,
+ 
+ List<int>? client,
+ List<int>? project_manager,
+ List<int>? business_developer,
+ List<int>? finance,
+  
+ List<int>? it_support, 
+  List<int>? team_lead,
+  List<int>? developer, 
+   List<int>? interns}
+  
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token');
+
+  try {
+    final formData = FormData.fromMap({
+      "project_type":projectType,
+      "project_name":name,
+      "project_description":description,
+      "client":client,
+      "project_manager":project_manager,
+      "developer":developer,
+      "it_support":it_support,
+      "interns":interns,
+      "team_lead":team_lead,
+      "business_developer":business_developer,
+      "finance": finance, // <-- ADDED COMMA
+
+    // This is the correct collection-if syntax
+    if (projectLogoFile != null)
+      'project_logo': await MultipartFile.fromFile(projectLogoFile.path), // <-- ADDED COMMA
+
+    if (socUploadFile != null)
+      'soc_upload': await MultipartFile.fromFile(socUploadFile.path),
+    });
+
+    final response = await _client.dio.post(
+      'api/projects/',
+      data: formData,
+      options: Options(
+        headers: {"Authorization": "Bearer $token"},
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = response.data;
+
+      // ✅ Parse into UserResponse model safely
+      if (data is Map<String, dynamic>) {
+        return ProjectResponse.fromJson(data);
+      } else {
+        return null;
+      }
+    } else {
+      lastError = response.data;
+      return null;
+    }
+  } catch (e) {
+    debugPrint("users API error: $e");
+    return null;
+  }
+}
+
+
+Future<ProjectResponse?> updateproject({
+required String name,
+  String? projectType,
+  required String description,
+  File? projectLogoFile,
+  File? socUploadFile,
+ 
+ List<int>? client,
+ List<int>? project_manager,
+ List<int>? business_developer,
+ List<int>? finance,
+  
+ List<int>? it_support, 
+  List<int>? team_lead,
+  List<int>? developer, 
+   List<int>? interns, required int projectId}
+ 
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token');
+
+  try {
+    final formData = FormData.fromMap({
+     "project_type":projectType,
+      "project_name":name,
+      "project_description":description,
+      "client":client,
+      "project_manager":project_manager,
+      "developer":developer,
+      "it_support":it_support,
+      "interns":interns,
+      "team_lead":team_lead,
+      "business_developer":business_developer,
+      "finance": finance, // <-- ADDED COMMA
+
+    // This is the correct collection-if syntax
+    if (projectLogoFile != null)
+      'project_logo': await MultipartFile.fromFile(projectLogoFile.path), // <-- ADDED COMMA
+
+    if (socUploadFile != null)
+      'soc_upload': await MultipartFile.fromFile(socUploadFile.path),
+      });
+
+    final response = await _client.dio.put(
+      'api/projects/$projectId/',
+      data: formData,
+      options: Options(
+        headers: {"Authorization": "Bearer $token"},
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = response.data;
+
+      // ✅ Parse into UserResponse model safely
+      if (data is Map<String, dynamic>) {
+        return ProjectResponse.fromJson(data);
+      } else {
+        return null;
+      }
+    } else {
+      lastError = response.data;
+      return null;
+    }
+  } catch (e) {
+    debugPrint("users API error: $e");
+    return null;
+  }
+}
 
 
 }

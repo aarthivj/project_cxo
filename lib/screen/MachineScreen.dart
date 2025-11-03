@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_cxo/model/MachineResponse.dart';
+import 'package:flutter_application_cxo/model/ProjectResponse.dart';
 import 'package:flutter_application_cxo/service/ApiService.dart';
 import 'package:flutter_application_cxo/widget/CustomWidget.dart';
 class FilterMappings {
@@ -195,7 +196,27 @@ class MachineScreenState extends State<MachineScreen> {
 ),
  
           const SizedBox(height: 10),
-
+// ➕ Add Machine button (aligned right)
+      Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          ElevatedButton.icon(
+            onPressed: () {
+              _showEditDialog(context,machines);
+            },
+            icon: const Icon(Icons.add),
+            label: const Text("Add Machine"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
           // 📋 Machine cards or loader
         Expanded(
   child: isLoading
@@ -269,7 +290,9 @@ class MachineScreenState extends State<MachineScreen> {
                               child: const Text("Cancel"),
                             ),
                             TextButton(
-                              onPressed: () => Navigator.of(context).pop(true),
+                              onPressed: () {
+                                  _showEditDialog(context,machines);
+                              },
                               child: const Text("Edit"),
                             ),
                           ],
@@ -350,4 +373,343 @@ class MachineScreenState extends State<MachineScreen> {
     
     );
   }
+  
+void _showEditDialog(BuildContext context, List<MachineResult> machines) {
+  final TextEditingController ipController = TextEditingController();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController storageController = TextEditingController();
+  final TextEditingController processorController = TextEditingController();
+  final TextEditingController coreController = TextEditingController();
+  final TextEditingController ramController = TextEditingController(text: "8");
+
+  String? selectedProvider;
+  String? selectedProject;
+  String? selectedEnvironment = "Development";
+  String? selectedHosted = "Client Hosted";
+  String? selectedUnit = "GB";
+
+  final List<String> providers = ["AWS", "Azure"];
+  final List<String> environments = ["Development", "Production", "Internal"];
+  final List<String> hosted = ["Client Hosted", "Droidal Hosted"];
+  final List<String> units = ["MB", "GB", "TB"];
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      List<ProjectResponse> projects = [];
+      bool isLoading = true;
+
+      // 👇 Using StatefulBuilder so we can call setState inside dialog
+      return StatefulBuilder(
+        builder: (context, setState) {
+          // Fetch project list only once (when dialog opens)
+          Future.delayed(Duration.zero, () async {
+            if (isLoading) {
+              try {
+                // Replace this with your actual API call
+                final fetchedProjects = await apiService.getprojects();
+                setState(() {
+                  projects = fetchedProjects!;
+                  isLoading = false;
+                });
+              } catch (e) {
+                debugPrint("❌ Error fetching projects: $e");
+                setState(() => isLoading = false);
+              }
+            }
+          });
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: const Text("Add New Machine"),
+            content: SizedBox(
+              width: 400,
+              height: 450,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // IP Address
+                    TextField(
+                      controller: ipController,
+                      decoration: const InputDecoration(
+                        labelText: "Machine IP Address",
+                        hintText: "192.168.1.100",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Machine Name
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: "Machine Name",
+                        hintText: "Enter Machine name",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Provider Dropdown
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: "Provider",
+                        border: OutlineInputBorder(),
+                      ),
+                      value: selectedProvider,
+                      isExpanded: true,
+                      items: providers
+                          .map((p) => DropdownMenuItem(
+                                value: p,
+                                child: Text(p),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => selectedProvider = v),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Project Dropdown (Loaded inside dialog)
+                    isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: "Projects",
+                              border: OutlineInputBorder(),
+                            ),
+                            value: selectedProject,
+                            isExpanded: true,
+                            items: projects.map((proj) {
+                              return DropdownMenuItem<String>(
+                                value: proj.projectName,
+                                child: Text(
+                                  proj.projectName ?? "",
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (v) => setState(() => selectedProject = v),
+                          ),
+                    const SizedBox(height: 12),
+
+                    // Environment
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: "Environment",
+                        border: OutlineInputBorder(),
+                      ),
+                      value: selectedEnvironment,
+                      isExpanded: true,
+                      items: environments
+                          .map((e) => DropdownMenuItem(
+                                value: e,
+                                child: Text(e),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => selectedEnvironment = v),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Hosted
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: "Hosted",
+                        border: OutlineInputBorder(),
+                      ),
+                      value: selectedHosted,
+                      isExpanded: true,
+                      items: hosted
+                          .map((h) => DropdownMenuItem(
+                                value: h,
+                                child: Text(h),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => selectedHosted = v),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Storage + Unit together
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: storageController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: "Storage",
+                              border: const OutlineInputBorder(),
+                              suffixIcon: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      int current =
+                                          int.tryParse(storageController.text) ?? 0;
+                                      storageController.text =
+                                          (current + 1).toString();
+                                    },
+                                    child: const Icon(Icons.arrow_drop_up),
+                                  ),
+                                  InkWell(
+                                    onTap: () {
+                                      int current =
+                                          int.tryParse(storageController.text) ?? 0;
+                                      if (current > 0) {
+                                        storageController.text =
+                                            (current - 1).toString();
+                                      }
+                                    },
+                                    child: const Icon(Icons.arrow_drop_down),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 1,
+                          child: DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: "Unit",
+                              border: OutlineInputBorder(),
+                            ),
+                            value: selectedUnit,
+                            isExpanded: true,
+                            items: units
+                                .map((u) => DropdownMenuItem(
+                                      value: u,
+                                      child: Text(u),
+                                    ))
+                                .toList(),
+                            onChanged: (v) => setState(() => selectedUnit = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Processor
+                    TextField(
+                      controller: processorController,
+                      decoration: const InputDecoration(
+                        labelText: "Processor",
+                        hintText: "e.g. Standard_E4as_v4",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Core
+                    TextField(
+                      controller: coreController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: "Core",
+                        border: const OutlineInputBorder(),
+                        suffixIcon: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                int current =
+                                    int.tryParse(coreController.text) ?? 0;
+                                coreController.text =
+                                    (current + 1).toString();
+                              },
+                              child: const Icon(Icons.arrow_drop_up),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                int current =
+                                    int.tryParse(coreController.text) ?? 0;
+                                if (current > 0) {
+                                  coreController.text =
+                                      (current - 1).toString();
+                                }
+                              },
+                              child: const Icon(Icons.arrow_drop_down),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // RAM
+                    TextField(
+                      controller: ramController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: "RAM (GB)",
+                        border: const OutlineInputBorder(),
+                        suffixIcon: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                int current =
+                                    int.tryParse(ramController.text) ?? 0;
+                                ramController.text =
+                                    (current + 1).toString();
+                              },
+                              child: const Icon(Icons.arrow_drop_up),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                int current =
+                                    int.tryParse(ramController.text) ?? 0;
+                                if (current > 0) {
+                                  ramController.text =
+                                      (current - 1).toString();
+                                }
+                              },
+                              child: const Icon(Icons.arrow_drop_down),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  print("✅ Create Machine clicked");
+                  print("IP: ${ipController.text}");
+                  print("Provider: $selectedProvider");
+                  print("Project: $selectedProject");
+                  print("Environment: $selectedEnvironment");
+                  print("Hosted: $selectedHosted");
+                  print("Storage: ${storageController.text} $selectedUnit");
+                  print("RAM: ${ramController.text} GB");
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text("Machine Created Successfully")),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text("Create Machine"),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+
 }                                 

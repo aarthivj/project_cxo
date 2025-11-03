@@ -26,7 +26,7 @@ class ProjectResponse {
 
     final int? id;
     final String? projectLogo;
-    final dynamic? socUpload;
+    final dynamic? socUpload;  
     final List<UserResponse>? businessDeveloperData;
     final List<UserResponse>? projectManagerData;
     final List<UserResponse>? developerData;

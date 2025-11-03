@@ -58,7 +58,8 @@ class ApiClient {
 
   ApiClient._internal()
       : _dio = Dio(BaseOptions(
-            baseUrl: "http://10.177.11.51/",
+            //baseUrl: "https://cxo.droidal.com/",
+            baseUrl: "http://10.0.2.2:8000/",
             connectTimeout: const Duration(seconds: 60),
             receiveTimeout: const Duration(seconds: 60),
             headers: {

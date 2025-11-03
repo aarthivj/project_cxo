@@ -1,27 +1,19 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_cxo/model/FiveAResponse.dart';
 import 'package:flutter_application_cxo/service/ApiService.dart';
-// Imports for models required by the screen logic and data parsing
 import 'package:flutter_application_cxo/model/ProjectResponse.dart';
 import 'package:flutter_application_cxo/model/ActivityResponse.dart';
-// Assuming you have imported your new models:
-// import 'package:flutter_application_cxo/model/ResultItem.dart'; 
-// import 'package:flutter_application_cxo/model/FiveAResponse.dart';
 
-// --- START: Corrected Model Wrappers ---
 class ProjectDisplayItem {
   final ResultItem acknowledgementData;
 
-  // Helper getter for backward compatibility with filter and other methods
-  // This is correctly nullable, matching the fix in ResultItem.
   ProjectResponse? get projectData => acknowledgementData.projectData;
 
   ProjectDisplayItem({
     required this.acknowledgementData,
   });
 }
-// --- END: Corrected Model Wrappers ---
-
 
 class AcknowledgementScreen extends StatefulWidget {
   const AcknowledgementScreen({super.key});
@@ -56,6 +48,9 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
   final List<ProjectDisplayItem> _displayHistory = [];
   final List<ProjectDisplayItem> _displayAwards = [];
 
+  //for edit and create 
+  List<ProjectResponse> projectdata =[];
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +66,8 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
     });
 
     _fetchForCurrentTab();
+
+    fetchproject();
   }
 
   @override
@@ -80,7 +77,6 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
     super.dispose();
   }
   
-  // --- Helper function to extract initials ---
   String _getInitials(String? name) {
     if (name == null || name.isEmpty) return 'N/A';
     
@@ -97,8 +93,7 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
 
     return initials.isEmpty ? 'N/A' : initials;
   }
-  // --- End Helper function ---
-
+  
   List<ProjectDisplayItem> _normalizeToDisplayList(dynamic resp) {
     final out = <ProjectDisplayItem>[];
     
@@ -108,25 +103,17 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
     }
     
     try {
-      // 1. Deserialize the top-level response using the new model
       final fiveAResponse = FiveAResponse.fromJson(resp);
-      
-      // 2. Map the deserialized ResultItem objects to ProjectDisplayItem
-      for (final resultItem in fiveAResponse.results) {
-        // We pass the entire ResultItem now
+            for (final resultItem in fiveAResponse.results) {
         out.add(ProjectDisplayItem(acknowledgementData: resultItem));
       }
 
     } catch (e, st) {
-      // This catch block now handles the error that was previously occurring.
       debugPrint("Error deserializing FiveAResponse or processing results: $e\n$st");
     }
 
     return out;
   }
-
-  // --- Fetching Methods (No change) ---
-
   Future<void> _fetchForCurrentTab() async {
     final idx = _tabController.index;
     if (idx == 0) return fetchRequest();
@@ -137,7 +124,6 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
   Future<void> fetchRequest() async {
     setState(() => isLoading = true);
     try {
-      // apiService.getfiveAreq now returns Future<Map<String, dynamic>>
       final resp = await apiService.getfiveAreq(page, pageSize, searchQuery);
       final list = _normalizeToDisplayList(resp);
 
@@ -161,7 +147,6 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
   Future<void> fetchHistory() async {
     setState(() => isLoading = true);
     try {
-      // apiService.getfiveAhis now returns Future<Map<String, dynamic>>
       final resp = await apiService.getfiveAhis(page, pageSize, searchQuery);
       final list = _normalizeToDisplayList(resp);
 
@@ -186,8 +171,17 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
     // ... (fetchAwards implementation is commented out in your original code)
   }
 
-  // --- Filtering and Pagination Logic (No functional change) ---
 
+  Future<void> fetchproject() async{
+      final response = await apiService.getprojects();
+      if(response!=null){
+        projectdata = response;
+      }else{
+        if(kDebugMode){
+          print("error fetching project data");
+        }
+      }
+  }
   void _applyFiltersAndPaginationForTab(int tabIndex) {
     List<ProjectDisplayItem> source;
     List<ProjectDisplayItem> filtered;
@@ -329,7 +323,7 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
         } 
       } catch (_) {
       }
-    }
+    }  
     
     // --- Card UI Construction ---
 
@@ -493,6 +487,39 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
             ),
           ),
 
+              Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          ElevatedButton.icon(
+            onPressed: () async{
+              
+              if (projectdata.isEmpty) {
+      await fetchproject(); // ⏳ Fetch first if empty
+    }
+
+    if (projectdata.isNotEmpty) {
+      _showEditDialog(context, projectdata);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No project data available")),
+      );
+    }
+  
+            },
+            icon: const Icon(Icons.add),
+            label: const Text("Add Activity"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
+
           // Tab content
           Expanded(
             child: TabBarView(
@@ -520,11 +547,124 @@ class _AcknowledgementScreenState extends State<AcknowledgementScreen>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.teal,
-      ),
+    
     );
   }
+  
+void _showEditDialog(BuildContext context, List<ProjectResponse> projectdata) {
+
+ // ✅ toggle status
+
+  String? selectedproject;
+  TextEditingController descController =  TextEditingController();
+ 
+  // Extract all client company names
+  final List<String> projectname = projectdata
+      .map((c) => c.projectName ?? '')
+      .where((name) => name.isNotEmpty)
+      .toSet()
+      .toList();
+
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: const Text("Create New A5"),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: 180,
+                minWidth: 300,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 🟢 Avatar Row
+                
+                  // 🟢 Scrollable Form Fields
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 15),
+                        
+                          // 🟢 Designation Dropdown
+                          DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: "Project",
+                              border: OutlineInputBorder(),
+                            ),
+                            value: selectedproject != null &&
+                                    projectname.contains(selectedproject)
+                                ? selectedproject
+                                : null,
+                            isExpanded: true,
+                            items: projectname.map((proj) {
+                              return DropdownMenuItem<String>(
+                                value: proj,
+                                child: Text(
+                                  proj,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() => selectedproject = value);
+                            },
+                          ),
+                          const SizedBox(height: 10),
+
+                             TextField(
+                              controller: descController,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                labelText: "Activity Input",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                    
+
+                   
+                       
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                
+             
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("User updated successfully"),
+                    ),
+                  );
+                },
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
 }

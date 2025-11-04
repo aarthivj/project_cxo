@@ -67,12 +67,12 @@ class ApiClient {
             },
           )) {
     // 1. SSL bypass setup (already correct for local HTTPS, but your URL is HTTP)
-    (_dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate =
-        (client) {
-      client.badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
-      return client;
-    };
+    // (_dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate =
+    //     (client) {
+    //   client.badCertificateCallback =
+    //       (X509Certificate cert, String host, int port) => true;
+    //   return client;
+    // };
 
     // 2. Add Logging Interceptor
     _dio.interceptors.add(LogInterceptor(responseBody: true));

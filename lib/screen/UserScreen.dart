@@ -725,6 +725,8 @@ void _showErrorSnackBar(dynamic errorResponse) {
       ),
     );
   }
+
+  
 Widget _buildCustomSnackbar({
     required String message,
     required Color color,
